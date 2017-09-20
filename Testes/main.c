@@ -26,52 +26,79 @@ int resto;
 
 //struct para instruções
 struct command{
-    char instruction_part[3][10];           //cada instrução tem 3 partes(strings de tamanho 10)
+    char instruction_part[3][30];           //cada instrução tem 3 partes(strings de tamanho 10)
+};
+
+struct memory
+{
+    int status;
+    int content;
 };
 
 //array de instruções
 struct command instruction_list[100];
-
+struct memory memory_list[100];
 
 int main(void)
 {
     //getline
-    FILE *fp;
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
+    FILE *fp, *fpMemory;
+    char *line = NULL, *lineMemory = NULL;
+    size_t len = 0, lenMemory = 0;
+    ssize_t read, readMemory;
 
     //strtok
-    char *pch;
+    char *pch, *pchMemory;
     
     //strtol
-    char *pEnd;
+    char *pEnd, *pEndMemory;
 
     //instruction pointer
-    int inst_pointer = 1;
+    int inst_pointer = 1;    
 
-
-    fp = fopen("teste_io.txt", "r");
-    if (fp == NULL)
+    fp = fopen("telefones.txt", "r");
+    fpMemory = fopen("memory.txt", "r");
+    if ((fp == NULL) || (fpMemory == NULL))
     {
         exit(EXIT_FAILURE);
     }
 
     int nInstructions = 0;                      //funciona no loop de leitura das instruções e serve como número total de insts
+    int nData = 0;
     //loop para leitura do arquivo de instruções
     while ((read = getline(&line, &len, fp)) != -1)
     {        
+
         pch = strtok(line, " ");                //necessário para começar a dividir tokens
         //if(strlen(&line) < 3) continue;
         int i;                                  // 0 a 2
         for(i = 0; pch != NULL; i++)            //copia as instruções do arquivo pro array de instruções
         {             
             strcpy(instruction_list[nInstructions].instruction_part[i], pch);
-            //printf("%s ", instruction_list[j].instruction_part[i]);
+            //printf("%s ", instruction_list[i].instruction_part[i]);
             pch = strtok(NULL, " ");
         }
         nInstructions++;
     }
+
+    //loop para leitura do arquivo de dados
+    while ((readMemory = getline(&lineMemory, &lenMemory, fpMemory)) != -1)
+    {        
+
+        pchMemory = strtok(lineMemory, " ");                //necessário para começar a dividir tokens
+        
+        if(*pchMemory == '\n')
+        {
+            nData++;
+            continue;
+        }
+
+        memory_list[nData].content = (int)strtol(pchMemory, &pEndMemory, 10);
+        memory_list[nData].status = 1;
+        //printf("\nMemória posição %d: %d \n", nData, memory[nData]);
+        nData++;
+    }
+
 
     for(inst_pointer; inst_pointer <= nInstructions; inst_pointer++)                //loop do ponteiro de instruções
     {
@@ -87,13 +114,51 @@ int main(void)
         else if(strcmp(current_command.instruction_part[0], "LOAD") == 0)           //coloca valor da memória no registrador;
         {
             int reg_id = current_command.instruction_part[1][1] - 48;               //pega o número depois do r no arquivo de texto e converte para int
-            int adress = (int)strtol(current_command.instruction_part[2], &pEnd, 10);
+            //int adress = (int)strtol(current_command.instruction_part[2], &pEnd, 10);
+            int adress;
+            
+            if(current_command.instruction_part[2][0] == 'r')
+            {
+                int reg_id2 = current_command.instruction_part[2][1] - 48;
+                adress = r[reg_id2];                
+            }
+            else{
+                adress = (int)strtol(current_command.instruction_part[2], &pEnd, 10);
+
+                //r[reg_id] += value;
+            }
+
+            if(memory_list[adress-1].status)
+            {
+                r[reg_id] = memory_list[adress-1].content;
+            }
+            else
+            {
+                printf("\nInvalid memory access\n");
+                return -1;
+            }
             //TODO
         }
         else if(strcmp(current_command.instruction_part[0], "STORE") == 0)          //coloca valor do registrador na memoria;
         {
             int reg_id = current_command.instruction_part[1][1] - 48;               //pega o número depois do r no arquivo de texto e converte para int
-            int adress = (int)strtol(current_command.instruction_part[2], &pEnd, 10);
+            //int adress = (int)strtol(current_command.instruction_part[2], &pEnd, 10);
+            
+            int adress;
+
+            if(current_command.instruction_part[2][0] == 'r')
+            {
+                int reg_id2 = current_command.instruction_part[2][1] - 48;
+                adress = r[reg_id2];                
+            }
+            else{
+                adress = (int)strtol(current_command.instruction_part[2], &pEnd, 10);
+
+                //r[reg_id] += value;
+            }
+
+            memory_list[adress-1].content = r[reg_id];
+            memory_list[adress-1].status = 1;
             //TODO
         }
         else if(strcmp(current_command.instruction_part[0], "COPY") == 0)           //copia valor do registrador 2 no registrador 1
@@ -200,12 +265,17 @@ int main(void)
             if(arg1 != arg2) flag_d = 1;
             
         }
+        else if(strcmp(current_command.instruction_part[0], "JUMP") == 0)
+        {            
+                int inst_adress = (int)strtol(current_command.instruction_part[1], &pEnd, 10);
+                inst_pointer = inst_adress - 1;         //subtrai 1 para compensar o incremento da variável de controle inst_pointer                
+        }
         else if(strcmp(current_command.instruction_part[0], "JZ") == 0)
         {
             if(flag_z == 1)
             {
                 int inst_adress = (int)strtol(current_command.instruction_part[1], &pEnd, 10);
-                inst_pointer = inst_adress - 1;         //subtrai 1 para compensar o incremento da variável de controle inst_ponter                
+                inst_pointer = inst_adress - 1;         //subtrai 1 para compensar o incremento da variável de controle inst_pointer                
             }
         }
         else if(strcmp(current_command.instruction_part[0], "JG") == 0)
@@ -266,10 +336,34 @@ int main(void)
             int reg_id = current_command.instruction_part[1][1] - 48;
             printf("%d\n", r[reg_id]);
         }
+        else if(strcmp(current_command.instruction_part[0], "PRINT") == 0)   //imprime valor de reg na tela
+        {
+            //int reg_id = current_command.instruction_part[1][1] - 48;
+            printf("%s\n", current_command.instruction_part[1]);
+        }
         else if(strcmp(current_command.instruction_part[0], "RET") == 0)        //sai do programa
         {
             int status = (int)strtol(current_command.instruction_part[1], &pEnd, 10);
             printf("Program ended with status %d\n", status);
+
+            fpMemory = fopen("memory.txt", "w");
+            if (fpMemory == NULL)
+            {
+                exit(EXIT_FAILURE);
+            }
+
+            for(int i = 0; i < 100; i++)                                        //Imprime toda a saída no arquivo txt de dados
+            {
+                if(memory_list[i].status)
+                {
+                    fprintf(fpMemory, "%d\n", memory_list[i].content);
+                }
+                else
+                {
+                    fprintf(fpMemory, "\n");
+                }
+            }
+
             break;
         }
         else if(strcmp(current_command.instruction_part[0], "ESCREVA") == 0)   //imprime valor de reg na tela
@@ -282,6 +376,10 @@ int main(void)
         //printf("%d  ", inst_pointer);
     }
 
+
+    fclose(fp);
+    fclose(fpMemory);
     free(line);
+    free(lineMemory);
     exit(EXIT_SUCCESS);
 }
